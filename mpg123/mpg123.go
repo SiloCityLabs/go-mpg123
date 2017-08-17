@@ -9,8 +9,10 @@ package mpg123
 import "C"
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"unsafe"
 )
@@ -40,6 +42,11 @@ const (
 	ENC_ANY         = C.MPG123_ENC_ANY
 )
 
+const (
+	IN_MAX_BUFFER_SIZE  = 16384
+	OUT_MAX_BUFFER_SIZE = 32768
+)
+
 // Contains a handle for and mpg123 decoder instance
 type Decoder struct {
 	handle *C.mpg123_handle
@@ -53,6 +60,20 @@ func init() {
 		panic("failed to initialize mpg123")
 	}
 	//return nil
+}
+
+///////////////////////////
+// DECODER INITIAL CODE //
+///////////////////////////
+
+func InitializeMpg123() {
+	C.mpg123_init()
+	return
+}
+
+func ExitMpg123() {
+	C.mpg123_exit()
+	return
 }
 
 ///////////////////////////
@@ -180,4 +201,47 @@ func (d *Decoder) Feed(buf []byte) error {
 		return fmt.Errorf("mpg123 error: %s", d.strerror())
 	}
 	return nil
+}
+
+// Feed input chunk and get first chunk of decoded audio.
+func (d *Decoder) Decode(buf []byte) ([]byte, error) {
+	var b bytes.Buffer
+	out := make([]byte, OUT_MAX_BUFFER_SIZE)
+	var outLen int
+	var size C.size_t
+
+	ret := C.mpg123_decode(d.handle, (*C.uchar)(unsafe.Pointer(&buf[0])), C.size_t(len(buf)), (*C.uchar)(&out[0]), C.size_t(OUT_MAX_BUFFER_SIZE), &size)
+	if ret == C.MPG123_NEW_FORMAT {
+		var rate C.long
+		var channels, enc C.int
+
+		C.mpg123_getformat(d.handle, &rate, &channels, &enc)
+		log.Printf("New format: %d Hz, %d channels, encoding value %d\n", rate, channels, enc)
+	} else if ret == C.MPG123_ERR || ret == C.MPG123_NEED_MORE {
+		log.Printf("mpg123 first decode error!!!\n")
+		return nil, fmt.Errorf("mpg123 error: %s", d.strerror())
+	}
+	outLen = int(size)
+	if outLen > 0 {
+		b.Write(out[:outLen])
+		log.Printf("mpg123 first decode. %d\n", outLen)
+	}
+
+	for {
+		ret = C.mpg123_decode(d.handle, nil, 0, (*C.uchar)(&out[0]), C.size_t(OUT_MAX_BUFFER_SIZE), &size)
+		if ret == C.MPG123_ERR || ret == C.MPG123_NEED_MORE {
+			break
+		}
+		outLen = int(size)
+		if outLen > 0 {
+			b.Write(out[:outLen])
+		}
+	}
+
+	if ret == C.MPG123_ERR {
+		log.Printf("mpg123 decode error!!!\n")
+		return nil, fmt.Errorf("mpg123 error: %s", d.strerror())
+	}
+
+	return b.Bytes(), nil
 }
