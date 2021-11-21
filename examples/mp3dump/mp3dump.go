@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/bobertlo/go-mpg123/mpg123"
 	"os"
+
+	"github.com/yuichi10/go-mpg123/mpg123"
 )
 
 func main() {
