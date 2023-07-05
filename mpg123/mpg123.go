@@ -85,7 +85,7 @@ func ExitMpg123() {
 ///////////////////////////
 
 // NewDecoder creates a new mpg123 decoder instance
-func NewDecoder(decoder string) (*Decoder, error) {
+func NewDecoder(decoder string, params ...C.long) (*Decoder, error) {
 	var err C.int
 	var mh *C.mpg123_handle
 	if decoder != "" {
@@ -94,6 +94,9 @@ func NewDecoder(decoder string) (*Decoder, error) {
 		cdecoder := C.CString(decoder)
 		defer C.free(unsafe.Pointer(cdecoder))
 		mh = C.mpg123_new(cdecoder, &err)
+		if params != nil {
+			C.mpg123_param(mh, C.MPG123_FLAGS, params[0], 0.)
+		}
 	}
 	if mh == nil {
 		errstring := C.mpg123_plain_strerror(err)
