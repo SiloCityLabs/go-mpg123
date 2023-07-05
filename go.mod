@@ -1,3 +1,3 @@
-module github.com/bobertlo/go-mpg123
+module github.com/SiloCityLabs/go-mpg123
 
-go 1.17
+go 1.19
